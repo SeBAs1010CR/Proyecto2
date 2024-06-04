@@ -1,0 +1,172 @@
+<html>
+            <head>
+                <title>Control de Futbolin</title>
+                <style>
+                    body {
+                        background-image: url('https://ichef.bbci.co.uk/ace/ws/640/cpsprodpb/238D/production/_95410190_gettyimages-488144002.jpg');
+                        background-size: cover;
+                        background-position: center;
+                        text-align: center;
+                        padding: 20px;
+                    }
+                    .button-container {
+                        display: inline-block;
+                        margin: 10px;
+                    }
+                    .button-container button {
+                        display: block;
+                        margin: 5px auto;
+                        padding: 25px 50px;
+                        font-size: 30px;
+                        background-color: #ac8400;
+                        border: none;
+                        color: white;
+                        text-align: center;
+                        text-decoration: none;
+                        cursor: pointer;
+                        border-radius: 16px;
+                        transition-duration: 0.4s;
+                    }
+                    .numero-seleccionado, .marcador {
+                        font-size: 50px;
+                        margin-top: 20px;
+                        background-color: #b18d00;
+                        color: white;
+                        padding: 10px;
+                        border-radius: 10px;
+                        display: inline-block;
+                    }
+                    .marcador {
+                        margin: 0 20px;
+                    }
+                    .led {
+                        width: 20px;
+                        height: 20px;
+                        margin: 5px;
+                        display: inline-block;
+                        border-radius: 50%;
+                        background-color: rgb(0, 0, 0);
+                    }
+                    .led.on {
+                        background-color: rgb(255, 0, 0);
+                    }
+                    .led-container {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-top: 20px;
+                    }
+                    .led-group {
+                        display: flex;
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>Control de Goles</h1>
+                <div class="button-container">
+                    <button onclick="seleccionarNumero('bin0')">0</button>
+                    <button onclick="seleccionarNumero('bin1')">1</button>
+                    <button onclick="seleccionarNumero('bin2')">2</button>
+                    <button onclick="seleccionarNumero('bin3')">3</button>
+                    <button onclick="seleccionarNumero('bin4')">4</button>
+                    <button onclick="seleccionarNumero('bin5')">5</button>
+                    <button onclick="seleccionarNumero('bin6')">6</button>
+                    <button onclick="seleccionarNumero('bin7')">7</button>
+                </div>
+                <div>
+                    <button onclick="enviarComando('Local')">Local</button>
+                    <button onclick="enviarComando('Visitante')">Visitante</button>
+                </div>
+                <div>
+                    <button onclick="penalizar('L')">Penalización Local</button>
+                    <button onclick="penalizar('V')">Penalización Visitante</button>
+                </div>
+                <div>
+                    <span id="numero-seleccionado" class="numero-seleccionado"></span>
+                </div>
+                <div>
+                    <span id="marcador-local" class="marcador">0</span>
+                    <span id="marcador-visitante" class="marcador">0</span>
+                </div>
+                <div class="led-container">
+                    <div id="leds-local" class="led-group">
+                        <div id="local-led-2" class="led"></div>
+                        <div id="local-led-1" class="led"></div>
+                        <div id="local-led-0" class="led"></div>
+                    </div>
+                    <div id="leds-visitante" class="led-group">
+                        <div id="visitante-led-2" class="led"></div>
+                        <div id="visitante-led-1" class="led"></div>
+                        <div id="visitante-led-0" class="led"></div>
+                    </div>
+                </div>
+
+                <script>
+                    let numeroSeleccionado = '';
+
+                    function seleccionarNumero(comando) {
+                        numeroSeleccionado = comando.replace('bin', '');
+                        document.getElementById('numero-seleccionado').innerText = numeroSeleccionado;
+                    }
+
+                    function enviarComando(equipo) {
+                        if (numeroSeleccionado === '') {
+                            alert('Por favor, selecciona un número primero.');
+                            return;
+                        }
+                        const marcadorId = equipo === 'Local' ? 'marcador-local' : 'marcador-visitante';
+                        document.getElementById(marcadorId).innerText = numeroSeleccionado;
+
+                        actualizarLEDs(equipo, parseInt(numeroSeleccionado));
+
+                        fetch('http://192.168.0.20:8080/control?accion=' + equipo + numeroSeleccionado)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Error al enviar comando');
+                                }
+                                console.log('Comando enviado: ' + equipo + numeroSeleccionado);
+                                document.getElementById('numero-seleccionado').innerText = '';
+                                numeroSeleccionado = '';
+                            })
+                            .catch(error => console.error('Error:', error));
+                    }
+
+                    function penalizar(equipo) {
+                        const marcadorId = equipo === 'L' ? 'marcador-local' : 'marcador-visitante';
+                        const marcadorElement = document.getElementById(marcadorId);
+                        let marcadorActual = parseInt(marcadorElement.innerText);
+                        let nuevoMarcador = marcadorActual - 3;
+
+                        if (nuevoMarcador < 0) {
+                            nuevoMarcador += 8;
+                        }
+
+                        marcadorElement.innerText = nuevoMarcador;
+
+                        actualizarLEDs(equipo, nuevoMarcador);
+
+                        fetch('http://192.168.0.20:8080/control?accion=penalizar' + equipo + nuevoMarcador)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Error al enviar comando de penalización');
+                                }
+                                console.log('Comando de penalización enviado: penalizar' + equipo + nuevoMarcador);
+                            })
+                            .catch(error => console.error('Error:', error));
+                    }
+
+                    function actualizarLEDs(equipo, valor) {
+                        const leds = equipo === 'L' ? ['local-led-0', 'local-led-1', 'local-led-2'] : ['visitante-led-0', 'visitante-led-1', 'visitante-led-2'];
+                        const binario = valor.toString(2).padStart(3, '0');
+
+                        for (let i = 0; i < leds.length; i++) {
+                            const led = document.getElementById(leds[i]);
+                            if (binario[2 - i] === '1') {
+                                led.classList.add('on');
+                            } else {
+                                led.classList.remove('on');
+                            }
+                        }
+                    }
+                </script>
+            </body>
+        </html>
